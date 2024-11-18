@@ -1,86 +1,131 @@
 const HttpError = require('../util/http-error');
-const { v4: uuidv4 } = require('uuid');  // For generating unique IDs
+const User = require('../models/User'); // Mongoose User model
+const { v4: uuidv4 } = require('uuid'); 
 
-let DUMMY_USERS = [
-    { id: 'u1', name: 'Mathu', email: 'mathu@gmail.com', password: '111' },
-    { id: 'u2', name: 'Kishan', email: 'kishan@gmail.com', password: '111' },
-    { id: 'u3', name: 'Akira', email: 'mathu@example.com', password: '111' }
-];
 
 // Create a new user (sign up)
-const signUp = (req, res, next) => {
+const signUp = async (req, res, next) => {
     const { name, email, password } = req.body;
 
     // Check if the user already exists
-    const hasUser = DUMMY_USERS.find(user => user.email === email);
-    if (hasUser) {
+    let existingUser;
+    try {
+        existingUser = await User.findOne({ email });
+    } catch (err) {
+        const error = new HttpError('Sign up failed, please try again later.', 500);
+        return next(error);
+    }
+
+    if (existingUser) {
         return next(new HttpError('User already exists, please login instead.', 422));
     }
 
-    // Create a new user with a unique ID
-    const newUser = {
-        id: uuidv4(),  // Using uuidv4 for unique ID generation
+    const newUser = new User({
         name,
         email,
-        password
-    };
+        password,
+    });
 
-    DUMMY_USERS.push(newUser);
-    res.status(201).json({ user: newUser });
-};
-
-// Retrive all users
-const getAllUsers = (req, res, next) => {
-    res.json({ users: DUMMY_USERS });
-};
-
-
-// Retrieve user by ID
-const getUserById = (req, res, next) => {
-    const userId = req.params.uid;
-
-    const user = DUMMY_USERS.find(u => u.id === userId);
-    if (!user) {
-        return next(new HttpError('Could not find a user for the provided user id.', 404));
+    try {
+        await newUser.save();
+    } catch (err) {
+        const error = new HttpError('Sign up failed, please try again.', 500);
+        return next(error);
     }
 
-    res.json({ user });
+    res.status(201).json({ user: newUser.toObject({ getters: true }) });
+};
+
+// Retrieve all users
+const getAllUsers = async (req, res, next) => {
+    let users;
+    try {
+        users = await User.find({}, '-password'); // Exclude the password field
+    } catch (err) {
+        const error = new HttpError('Fetching users failed, please try again later.', 500);
+        return next(error);
+    }
+
+    res.json({ users: users.map(user => user.toObject({ getters: true })) });
+};
+
+// Retrieve user by ID
+const getUserById = async (req, res, next) => {
+    const userId = req.params.uid;
+
+    let user;
+    try {
+        user = await User.findById(userId);
+    } catch (err) {
+        const error = new HttpError('Something went wrong, could not find a user.', 500);
+        return next(error);
+    }
+
+    if (!user) {
+        return next(new HttpError('Could not find a user for the provided ID.', 404));
+    }
+
+    res.json({ user: user.toObject({ getters: true }) });
 };
 
 // Update a user
-const updateUser = (req, res, next) => {
+const updateUser = async (req, res, next) => {
     const userId = req.params.uid;
     const { name, email } = req.body;
 
-    const userIndex = DUMMY_USERS.findIndex(user => user.id === userId);
-    if (userIndex === -1) {
-        return next(new HttpError('User not found.', 404));
+    let user;
+    try {
+        user = await User.findById(userId);
+    } catch (err) {
+        const error = new HttpError('Something went wrong, could not update the user.', 500);
+        return next(error);
     }
 
-    DUMMY_USERS[userIndex] = {
-        ...DUMMY_USERS[userIndex],
-        name: name || DUMMY_USERS[userIndex].name,
-        email: email || DUMMY_USERS[userIndex].email,
-    };
+    if (!user) {
+        return next(new HttpError('Could not find a user for the provided ID.', 404));
+    }
 
-    res.status(200).json({ user: DUMMY_USERS[userIndex] });
+    user.name = name || user.name;
+    user.email = email || user.email;
+
+    try {
+        await user.save();
+    } catch (err) {
+        const error = new HttpError('Something went wrong, could not update the user.', 500);
+        return next(error);
+    }
+
+    res.status(200).json({ user: user.toObject({ getters: true }) });
 };
 
 // Delete a user
-const deleteUser = (req, res, next) => {
+const deleteUser = async (req, res, next) => {
     const userId = req.params.uid;
 
-    const userIndex = DUMMY_USERS.findIndex(user => user.id === userId);
-    if (userIndex === -1) {
-        return next(new HttpError('User not found.', 404));
+    let user;
+    try {
+        user = await User.findById(userId);
+    } catch (err) {
+        const error = new HttpError('Something went wrong, could not delete the user.', 500);
+        return next(error);
     }
 
-    DUMMY_USERS.splice(userIndex, 1);
+    if (!user) {
+        return next(new HttpError('Could not find a user for the provided ID.', 404));
+    }
+
+    try {
+        await user.deleteOne();
+    } catch (err) {
+        const error = new HttpError('Something went wrong, could not delete the user.', 500);
+        return next(error);
+    }
+
     res.status(200).json({ message: 'User deleted.' });
 };
 
 exports.signUp = signUp;
+exports.getAllUsers = getAllUsers;
 exports.getUserById = getUserById;
 exports.updateUser = updateUser;
 exports.deleteUser = deleteUser;
-exports.getAllUsers = getAllUsers;
