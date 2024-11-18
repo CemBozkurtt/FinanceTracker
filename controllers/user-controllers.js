@@ -1,5 +1,5 @@
 const HttpError = require('../util/http-error');
-const User = require('../models/User'); // Mongoose User model
+const User = require('../models/User'); 
 const { v4: uuidv4 } = require('uuid'); 
 
 const signUp = async (req, res, next) => {
