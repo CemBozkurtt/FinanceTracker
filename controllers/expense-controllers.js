@@ -1,102 +1,124 @@
 const HttpError = require('../util/http-error');
-const { v4: uuidv4 } = require('uuid');
-const Expense = require('../models/expense');  // Import the Expense model
-//const mongoose = require('mongoose');  // Import mongoose for validation
+const Expense = require('../models/expense'); 
 
-// In-memory expense records (for demonstration purposes)
-let DUMMY_EXPENSES = [];
+const createExpense = async (req, res, next) => {
+    const { userId, category, amount, description } = req.body;
 
-// Create Expense for a User
-const createExpense = (req, res, next) => {
-  const { userId, standardExpense, variableExpense } = req.body;
+    if (!userId || amount === undefined || !category) {
+        return next(new HttpError("User ID, category, and amount are required to create an expense.", 400));
+    }
 
-  // Validate required fields
-  if (!userId || !standardExpense || !variableExpense) {
-    return next(new HttpError("User ID, standard expenses, and variable expenses are required.", 400));
-  }
+    const newExpense = new Expense({
+        userId,
+        category,
+        amount,
+        description: description || '', // Default to empty string if description is not provided
+    });
 
+    try {
+        await newExpense.save();
+    } catch (err) {
+        const error = new HttpError("Creating expense failed, please try again.", 500);
+        return next(error);
+    }
 
-  // Create new expense object
-  const newExpense = {
-    id: uuidv4(),
-    userId,
-    standardExpense,
-    variableExpense,
-  };
-
-  // Add to in-memory records (replace with DB save in a real scenario)
-  DUMMY_EXPENSES.push(newExpense);
-
-  res.status(201).json({
-    message: "Expense created successfully.",
-    expense: newExpense,
-  });
+    res.status(201).json({
+        message: "Expense created successfully.",
+        expense: newExpense.toObject({ getters: true }),
+    });
 };
 
-// Retrieve All Expenses Entries
-const getAllExpenses = (req, res, next) => {
-  res.status(200).json({
-    message: "All expense records retrieved successfully.",
-    expenses: DUMMY_EXPENSES,
-  });
+const getAllExpenses = async (req, res, next) => {
+    let expenses;
+    try {
+        expenses = await Expense.find();
+    } catch (err) {
+        const error = new HttpError("Fetching expense records failed, please try again later.", 500);
+        return next(error);
+    }
+
+    res.status(200).json({
+        message: "All expense records retrieved successfully.",
+        expenses: expenses.map((entry) => entry.toObject({ getters: true })),
+    });
 };
 
-// Retrieve Expenses by User ID
-const getExpensesByUserId = (req, res, next) => {
-  const userId = req.params.userId;
+const getExpensesByUserId = async (req, res, next) => {
+    const userId = req.params.userId;
 
-  const userExpenses = DUMMY_EXPENSES.filter((expense) => expense.userId === userId);
+    let userExpenses;
+    try {
+        userExpenses = await Expense.find({ userId });
+    } catch (err) {
+        const error = new HttpError("Fetching expenses failed, please try again later.", 500);
+        return next(error);
+    }
 
-  if (!userExpenses || userExpenses.length === 0) {
-    return next(new HttpError("No expense records found for this user.", 404));
-  }
+    if (!userExpenses || userExpenses.length === 0) {
+        return next(new HttpError("No expense records found for this user.", 404));
+    }
 
-  res.status(200).json({ expenses: userExpenses });
+    res.status(200).json({ expenses: userExpenses.map((entry) => entry.toObject({ getters: true })) });
 };
 
-// Update Expense for a User
-const updateExpense = (req, res, next) => {
-  const userId = req.params.userId;
-  
-  const { standardExpense, variableExpense } = req.body;
+const updateExpense = async (req, res, next) => {
+    const expenseId = req.params.expenseId;
+    const { category, amount, description } = req.body;
 
-  // Find the index of the expense to update
-  const expenseIndex = DUMMY_EXPENSES.findIndex((expense) => expense.userId === userId);
+    let expense;
+    try {
+        expense = await Expense.findById(expenseId);
+    } catch (err) {
+        const error = new HttpError("Something went wrong, could not update expense.", 500);
+        return next(error);
+    }
 
-  if (expenseIndex === -1) {
-    return next(new HttpError("Expense entry not found for this user.", 404));
-  }
+    if (!expense) {
+        return next(new HttpError("Expense entry not found.", 404));
+    }
 
-  // Update the expense record
-  DUMMY_EXPENSES[expenseIndex] = {
-    ...DUMMY_EXPENSES[expenseIndex],
-    standardExpense: standardExpense || DUMMY_EXPENSES[expenseIndex].standardExpense,
-    variableExpense: variableExpense || DUMMY_EXPENSES[expenseIndex].variableExpense,
-  };
+    expense.category = category || expense.category;
+    expense.amount = amount !== undefined ? amount : expense.amount;
+    expense.description = description || expense.description;
 
-  res.status(200).json({
-    message: "Expense entry updated successfully.",
-    expense: DUMMY_EXPENSES[expenseIndex],
-  });
+    try {
+        await expense.save();
+    } catch (err) {
+        const error = new HttpError("Updating expense failed, please try again.", 500);
+        return next(error);
+    }
+
+    res.status(200).json({
+        message: "Expense entry updated successfully.",
+        expense: expense.toObject({ getters: true }),
+    });
 };
 
-// Delete Expense for a User
-const deleteExpense = (req, res, next) => {
-  const userId = req.params.userId;
+const deleteExpense = async (req, res, next) => {
+    const expenseId = req.params.expenseId;
 
-  const expenseIndex = DUMMY_EXPENSES.findIndex((expense) => expense.userId === userId);
+    let expense;
+    try {
+        expense = await Expense.findById(expenseId);
+    } catch (err) {
+        const error = new HttpError("Something went wrong, could not delete expense.", 500);
+        return next(error);
+    }
 
-  if (expenseIndex === -1) {
-    return next(new HttpError("Expense entry not found for this user.", 404));
-  }
+    if (!expense) {
+        return next(new HttpError("Expense entry not found.", 404));
+    }
 
-  // Remove the expense entry from in-memory records
-  DUMMY_EXPENSES.splice(expenseIndex, 1);
+    try {
+        await expense.deleteOne();
+    } catch (err) {
+        const error = new HttpError("Deleting expense failed, please try again.", 500);
+        return next(error);
+    }
 
-  res.status(200).json({ message: "Expense entry deleted successfully." });
+    res.status(200).json({ message: "Expense entry deleted." });
 };
 
-// Export the methods for use in routes
 exports.createExpense = createExpense;
 exports.getAllExpenses = getAllExpenses;
 exports.getExpensesByUserId = getExpensesByUserId;
