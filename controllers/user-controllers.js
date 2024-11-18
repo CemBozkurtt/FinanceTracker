@@ -2,12 +2,9 @@ const HttpError = require('../util/http-error');
 const User = require('../models/User'); // Mongoose User model
 const { v4: uuidv4 } = require('uuid'); 
 
-
-// Create a new user (sign up)
 const signUp = async (req, res, next) => {
     const { name, email, password } = req.body;
 
-    // Check if the user already exists
     let existingUser;
     try {
         existingUser = await User.findOne({ email });
@@ -36,7 +33,6 @@ const signUp = async (req, res, next) => {
     res.status(201).json({ user: newUser.toObject({ getters: true }) });
 };
 
-// Retrieve all users
 const getAllUsers = async (req, res, next) => {
     let users;
     try {
@@ -49,7 +45,6 @@ const getAllUsers = async (req, res, next) => {
     res.json({ users: users.map(user => user.toObject({ getters: true })) });
 };
 
-// Retrieve user by ID
 const getUserById = async (req, res, next) => {
     const userId = req.params.uid;
 
@@ -68,7 +63,6 @@ const getUserById = async (req, res, next) => {
     res.json({ user: user.toObject({ getters: true }) });
 };
 
-// Update a user
 const updateUser = async (req, res, next) => {
     const userId = req.params.uid;
     const { name, email } = req.body;
@@ -98,7 +92,6 @@ const updateUser = async (req, res, next) => {
     res.status(200).json({ user: user.toObject({ getters: true }) });
 };
 
-// Delete a user
 const deleteUser = async (req, res, next) => {
     const userId = req.params.uid;
 
