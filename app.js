@@ -17,14 +17,11 @@ app.use('/api/users', usersRoutes);
 app.use('/api/income', incomeRoutes);
 app.use('/api/expense', expenseRoutes);
 
-
-// Handle 404 errors if no routes are matched
 app.use((req, res, next) => {
     const error = new HttpError('Could not find this route.', 404);
     next(error);
 });
 
-// Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Error middleware triggered:', error);
     if (res.headerSent) {
@@ -34,7 +31,6 @@ app.use((error, req, res, next) => {
     res.json({ message: error.message || 'An unknown error occurred!' });
 });
 
-// MongoDB connection and app start
 mongoose
   .connect('mongodb+srv://username:BdZnfmQCSxCqGLkx@cluster0.stiyv.mongodb.net/budget?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => {
